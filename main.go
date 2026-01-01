@@ -2,6 +2,13 @@ package main
 
 
 import (
-	"fmt",
+	"fmt"
 	
 )
+
+const DATABASE_PATH = "./todos.db"
+
+func main() {
+	InitDB(DATABASE_PATH)
+	fmt.Print("Database initiated")
+}
