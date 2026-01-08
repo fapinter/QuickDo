@@ -35,7 +35,7 @@ func InitDB(filepath string) *sql.DB {
 	CREATE TABLE IF NOT EXISTS todo_items (
 		todo_id INTEGER PRIMARY KEY,
 		text_todo TEXT NOT NULL,
-		complete INTEGER NOT NULL DEFAULT 0,
+		complete TEXT NOT NULL DEFAULT "No",
 		due_date TEXT
 	);`
 	_, err_table_create := db.Exec(sql_script);
@@ -92,16 +92,15 @@ func ListTasks(db *sql.DB, cap int) {
 			task Task
 			date_task time.Time
 			err_parse error
-			completed bool
 		)	
-		err := rows.Scan(&task.id, &task.text, &completed, &task.due_date)
+		err := rows.Scan(&task.id, &task.text, &task.complete, &task.due_date)
 		if err != nil {
 			log.Fatalln(err)
 		}
 		if task.due_date != ""{
 			date_task, err_parse = time.Parse(DATE_FORMAT, task.due_date)
 			if err_parse != nil {
-				log.Fatalf("\nError parsing Task date: \n%s\n", err_parse)
+				fmt.Printf("Date %s could not be parsed, use the following format: YYYY-MM-DD\n", task.due_date)
 			}
 			if time.Now().After(date_task){
 				task.expired = "Yes"
@@ -112,35 +111,51 @@ func ListTasks(db *sql.DB, cap int) {
 			task.expired = "No"
 		}
 
-		if completed{
-			task.complete = "Yes"
-		}	else{
-			task.complete = "No"
-		}
 		fmt.Fprintf(w, "%v\t%s\t%s\t%v\t%s\t\n", task.id, task.text, task.complete, task.due_date, task.expired)
 	}
 	w.Flush()
 }
 
 
-func UpdateTask(db *sql.DB, id string, column string, value string) {
-	var (
-		query string = fmt.Sprintf("UPDATE todo_items SET %s=%s WHERE todo_id=%s", column, value, id)
-	)
-	_, err := db.Exec(query)
-	if err != nil {
-		log.Fatalln(err)
+func UpdateTask(db *sql.DB, id int, column string, value string) {
+	if column == "due_date"{
+		re := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+		var valid_date bool = re.MatchString(value)
+		if !valid_date {
+			fmt.Println("Invalid date, please use the following format: YYYY-MM-DD")
+			return
+		}
+	}
+	var query string = fmt.Sprintf("UPDATE todo_items SET %s='%s' WHERE todo_id=%v", column, value, id)
+	res, err_query := db.Exec(query)
+	if err_query != nil {
+		log.Fatalln(err_query)
 	}else {
-		fmt.Printf("Task %s updated successfully", id)
+		rows_affected, err_rows := res.RowsAffected()
+		if err_rows != nil {
+			log.Fatalln(err_rows)
+		} else if rows_affected > 0{
+			fmt.Printf("Task %v updated successfully\n", id)
+		} else{
+			fmt.Printf("Task %v not updated, check if the value passed is valid\n", id)
+		}
 	}
 }
-func ManageCheck(db *sql.DB, id string, check_state uint8) {
-	var query string = "UPDATE todo_items SET checked=? WHERE todo_id=?"
-	_, err := db.Query(query, check_state, id)
+
+func ManageCheck(db *sql.DB, id int, check_state string) {
+	var query string = fmt.Sprintf("UPDATE todo_items SET complete='%s' WHERE todo_id=%v", check_state, id)
+	res, err := db.Exec(query)
 	if err != nil {
-		log.Fatalf("Error (un)checking task: \n\t%s\n",err)
+		log.Fatalln(err)
 	} else{
-		fmt.Printf("Task %v state changed successfully", id)
+		rows_affected, err_rows := res.RowsAffected()
+		if err_rows != nil {
+			log.Fatalln(err_rows)
+		} else if rows_affected > 0 {
+			fmt.Printf("Task %v state changed successfully\n", id)
+		} else {
+			fmt.Printf("Task %v state not changed, task might not exist\n", id)
+		}	
 	}
 }
 
@@ -149,22 +164,33 @@ func RemoveTask(db *sql.DB, task_ids []string) {
 	var query string = ` DELETE FROM todo_items WHERE todo_id IN (`;
 	query += strings.Join(task_ids, ", ")
 	query += ")"
-	_, err := db.Query(query)
-	if err != nil {
-		log.Fatalln(err)
+	res, err_query := db.Exec(query)
+	if err_query != nil {
+		log.Fatalln(err_query)
 	} else {
-		fmt.Printf("%d Task(s) removed successfully", len(task_ids))
+		rows_affected, err_rows := res.RowsAffected()
+		if err_rows != nil {
+			log.Fatalln(err_rows)
+		} else {
+			fmt.Printf("%d Task(s) removed successfully", rows_affected)
+		}
 	}
 
 }
 
-func CleanTasks(db *sql.DB) {
+func CleanTasks(db *sql.DB, mode string) {
 	var (
-		curr_date string = time.Now().Format(DATE_FORMAT)
 		deleted_rows int64
 		err_rowCount error
+		query string = "DELETE FROM todo_items WHERE "
 	)
-	result, err := db.Exec("DELETE FROM todo_items WHERE due_date < ? AND due_date != ''", curr_date)
+	if mode == "expired" {
+		var curr_date string = time.Now().Format(DATE_FORMAT)
+		query += fmt.Sprintf("due_date < '%s' AND due_date != ''", curr_date)
+	} else{
+		query += "complete='Yes'"
+	}
+	result, err := db.Exec(query)
 	if err != nil {
 		log.Fatalln(err)
 	}
