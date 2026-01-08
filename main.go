@@ -15,14 +15,15 @@ const INVALID_VALUE_INTEGER = "Invalid value for %s, must be an integer\n"
 var Version = "development"
 
 func getDBPath() string {
-		exe_path, _ := os.Executable()
-		exe_dir := filepath.Dir(exe_path)
-		return filepath.Join(exe_dir, DATABASE_PATH)
+		user_path, _ := os.UserConfigDir()
+		app_dir := filepath.Join(user_path, "quickdo")
+		os.MkdirAll(app_dir, 0755)
+		return filepath.Join(app_dir, DATABASE_PATH)
 }
 
 func main() {
-
-	db := InitDB(getDBPath())
+	filepath := getDBPath()
+	db := InitDB(filepath)
 
  	var op string = os.Args[1]
 

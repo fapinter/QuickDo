@@ -27,3 +27,5 @@ Go to the [Releases](https://github.com/fapinter/QuickDo/releases) page and down
    
    # Give permission to run
    sudo chmod +x /usr/local/bin/quickdo
+
+   sudo chown $USER /usr/local/bin/quickdo
