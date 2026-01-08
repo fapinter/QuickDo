@@ -25,6 +25,10 @@ func main() {
 	filepath := getDBPath()
 	db := InitDB(filepath)
 
+	if len(os.Args) == 1{
+		fmt.Println("No command passed, use help to see all commands available")
+		return
+	}
  	var op string = os.Args[1]
 
 	switch op {
