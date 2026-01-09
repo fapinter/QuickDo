@@ -50,7 +50,7 @@ func AddTask(db *sql.DB, tasks[]string){
 	var sql_script string = "INSERT INTO todo_items(text_todo, due_date) VALUES"
 	var tasks_inserted []string
 	for _, value := range tasks {
-		var date, text_todo string
+		var date, text_todo, temp string
 			
 		text_todo = value
 		re := regexp.MustCompile(`:(\d{4}-\d{2}-\d{2})`)
@@ -60,8 +60,16 @@ func AddTask(db *sql.DB, tasks[]string){
 			date = dates[len(dates) - 1][1]
 			var trim string = dates[len(dates) -1][0]
 			text_todo = strings.TrimSuffix(text_todo, trim)
+			
+			//Validates if the Date does exist
+			_, err_parse := time.Parse(DATE_FORMAT, date)
+			if err_parse != nil {
+				fmt.Printf("Invalid date %s, date will set as Today, use update-date to modify it\n", date)
+				date = time.Now().Format(DATE_FORMAT)
+			}
+
 		}
-		var temp string = fmt.Sprintf("('%s', '%s')", text_todo, date)
+		temp = fmt.Sprintf("('%s', '%s')", text_todo, date)
 		tasks_inserted = append(tasks_inserted, temp)
 	}
 	sql_script += strings.Join(tasks_inserted, ",")
@@ -118,10 +126,10 @@ func ListTasks(db *sql.DB, cap int) {
 
 
 func UpdateTask(db *sql.DB, id int, column string, value string) {
+	//Date validation
 	if column == "due_date"{
-		re := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-		var valid_date bool = re.MatchString(value)
-		if !valid_date {
+		_, err_parse := time.Parse(DATE_FORMAT, value)
+		if err_parse != nil {
 			fmt.Println("Invalid date, please use the following format: YYYY-MM-DD")
 			return
 		}
