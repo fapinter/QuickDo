@@ -36,7 +36,7 @@ func main() {
 			var tasks []string = os.Args[2:]
 			AddTask(db, tasks)
 
-		case "list":
+		case "list", "ls":
 			var (
 				cap_ int
 				err error
@@ -63,16 +63,16 @@ func main() {
 				if len(os.Args) > 3{
 					fmt.Println("(un)check function accepts only one ID at a time, other parameters will be ignored")
 				}
-				id_task, err_parse = strconv.Atoi(os.Args[2]) 
+				id_task, err_parse = strconv.Atoi(os.Args[2])
 				if err_parse != nil {
 					fmt.Printf(INVALID_VALUE_INTEGER, "id")
 				}
-				
+
 				ManageCheck(db, id_task, check_state)
 			} else {
 				log.Fatalln("Task ID missing, no task was (un)checked")
-			} 
-			
+			}
+
 		case "update-date", "update-text":
 			var column, value string
 			if len(os.Args) >= 4{
@@ -93,11 +93,15 @@ func main() {
 				UpdateTask(db, id_task, column, value)
 
 			} else {
-				log.Fatalln("Task ID and/or Date missing, no task was updated")
+				if op == "update-date"{
+					log.Fatalln("Task ID and/or Date missing, no task was updated")
+				} else {
+					log.Fatalln("Task ID and/or Text missing, no task was updated")
+				}
 			}
 
 
-		case "remove":
+		case "remove", "rm":
 			if len(os.Args) >= 3{
 				//IDs are passed as strings to facilitate the SQL statements
 				//But must be verified so a SQL syntax error doesn't occur
@@ -106,7 +110,7 @@ func main() {
 					if _, err := strconv.Atoi(value); err != nil {
 						fmt.Printf("Invalid value %s for ID, must be integer\n", value)
 					} else{
-						tasks = append(tasks, value)	
+						tasks = append(tasks, value)
 					}
 				}
 				RemoveTask(db, tasks)
@@ -125,7 +129,7 @@ func main() {
 		case "export":
 			fmt.Println("Work in progress")
 
-		case "help":
+		case "help", "--help", "-h":
 				w := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
 
 				fmt.Fprintln(w, "COMMAND\tDESCRIPTION\t")

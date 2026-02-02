@@ -51,7 +51,7 @@ func AddTask(db *sql.DB, tasks[]string){
 	var tasks_inserted []string
 	for _, value := range tasks {
 		var date, text_todo, temp string
-			
+
 		text_todo = value
 		re := regexp.MustCompile(`:(\d{4}-\d{2}-\d{2})`)
 		var dates [][]string = re.FindAllStringSubmatch(text_todo, -1)
@@ -60,7 +60,7 @@ func AddTask(db *sql.DB, tasks[]string){
 			date = dates[len(dates) - 1][1]
 			var trim string = dates[len(dates) -1][0]
 			text_todo = strings.TrimSuffix(text_todo, trim)
-			
+
 			//Validates if the Date does exist
 			_, err_parse := time.Parse(DATE_FORMAT, date)
 			if err_parse != nil {
@@ -91,7 +91,7 @@ func ListTasks(db *sql.DB, cap int) {
 		log.Fatalln(err_list)
 	}
 	defer rows.Close()
-	
+
 	//Tabwriter used to display the table aligned
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, "ID\tText\tCompleted\tExpiration Date\tExpired\t")
@@ -100,7 +100,7 @@ func ListTasks(db *sql.DB, cap int) {
 			task Task
 			date_task time.Time
 			err_parse error
-		)	
+		)
 		err := rows.Scan(&task.id, &task.text, &task.complete, &task.due_date)
 		if err != nil {
 			log.Fatalln(err)
@@ -114,7 +114,7 @@ func ListTasks(db *sql.DB, cap int) {
 				task.expired = "Yes"
 			} else{
 				task.expired = "No"
-			}	
+			}
 		} else{
 			task.expired = "No"
 		}
@@ -163,7 +163,7 @@ func ManageCheck(db *sql.DB, id int, check_state string) {
 			fmt.Printf("Task %v state changed successfully\n", id)
 		} else {
 			fmt.Printf("Task %v state not changed, task might not exist\n", id)
-		}	
+		}
 	}
 }
 
@@ -180,7 +180,7 @@ func RemoveTask(db *sql.DB, task_ids []string) {
 		if err_rows != nil {
 			log.Fatalln(err_rows)
 		} else {
-			fmt.Printf("%d Task(s) removed successfully", rows_affected)
+			fmt.Printf("%d Task(s) removed successfully\n", rows_affected)
 		}
 	}
 
