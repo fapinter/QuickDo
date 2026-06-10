@@ -13,14 +13,18 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 )
 
-const DATE_FORMAT  = "2006-01-02"
+const DATE_FORMAT = "2006-01-02"
 
 type Task struct {
-	id				int
-	text  		string
-	complete  string
-	due_date  string
-	expired   string
+	id       int
+	text     string
+	complete string
+	due_date string
+	expired  string
+}
+type MinTask struct {
+	id   int
+	text string
 }
 
 // Guarantee the Database is configurated for the tasks to be stored
@@ -38,7 +42,7 @@ func InitDB(filepath string) *sql.DB {
 		complete TEXT NOT NULL DEFAULT "No",
 		due_date TEXT
 	);`
-	_, err_table_create := db.Exec(sql_script);
+	_, err_table_create := db.Exec(sql_script)
 	if err_table_create != nil {
 		log.Fatalln(err_table_create)
 	}
@@ -46,7 +50,7 @@ func InitDB(filepath string) *sql.DB {
 }
 
 // Function to add tasks into the Database
-func AddTask(db *sql.DB, tasks[]string){
+func AddTask(db *sql.DB, tasks []string) {
 	var sql_script string = "INSERT INTO todo_items(text_todo, due_date) VALUES"
 	var tasks_inserted []string
 	for _, value := range tasks {
@@ -57,8 +61,8 @@ func AddTask(db *sql.DB, tasks[]string){
 		var dates [][]string = re.FindAllStringSubmatch(text_todo, -1)
 		if len(dates) > 0 {
 			//Separates the whole string on [0] and the capturing group on [1]
-			date = dates[len(dates) - 1][1]
-			var trim string = dates[len(dates) -1][0]
+			date = dates[len(dates)-1][1]
+			var trim string = dates[len(dates)-1][0]
 			text_todo = strings.TrimSuffix(text_todo, trim)
 
 			//Validates if the Date does exist
@@ -81,8 +85,13 @@ func AddTask(db *sql.DB, tasks[]string){
 	fmt.Printf("%d task(s) added successfully!\n", len(tasks))
 }
 
-func ListTasks(db *sql.DB, cap int) {
-	var sql_script string = "SELECT todo_id, text_todo, complete, due_date FROM todo_items"
+func ListTasks(db *sql.DB, cap int, minimize bool) {
+	var sql_script string = "SELECT todo_id, text_todo"
+	if minimize {
+		sql_script += " FROM todo_items"
+	} else {
+		sql_script += ", complete, due_date FROM todo_items"
+	}
 	if cap > 0 {
 		sql_script += fmt.Sprintf(" LIMIT %d", cap)
 	}
@@ -94,40 +103,51 @@ func ListTasks(db *sql.DB, cap int) {
 
 	//Tabwriter used to display the table aligned
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "ID\tText\tCompleted\tExpiration Date\tExpired\t")
-	for rows.Next(){
-		var (
-			task Task
-			date_task time.Time
-			err_parse error
-		)
-		err := rows.Scan(&task.id, &task.text, &task.complete, &task.due_date)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		if task.due_date != ""{
-			date_task, err_parse = time.Parse(DATE_FORMAT, task.due_date)
-			if err_parse != nil {
-				fmt.Printf("Date %s could not be parsed, use the following format: YYYY-MM-DD\n", task.due_date)
+	if minimize {
+		fmt.Fprintln(w, "ID\tText\t")
+		for rows.Next() {
+			var task MinTask
+			err := rows.Scan(&task.id, &task.text)
+			if err != nil {
+				log.Fatalln(err)
 			}
-			if time.Now().After(date_task){
-				task.expired = "Yes"
-			} else{
+			fmt.Fprintf(w, "%v\t%s\n", task.id, task.text)
+		}
+		w.Flush()
+	} else {
+		fmt.Fprintln(w, "ID\tText\tCompleted\tExpiration Date\tExpired\t")
+		for rows.Next() {
+			var (
+				task      Task
+				date_task time.Time
+				err_parse error
+			)
+			err := rows.Scan(&task.id, &task.text, &task.complete, &task.due_date)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if task.due_date != "" {
+				date_task, err_parse = time.Parse(DATE_FORMAT, task.due_date)
+				if err_parse != nil {
+					fmt.Printf("Date %s could not be parsed, use the following format: YYYY-MM-DD\n", task.due_date)
+				}
+				if time.Now().After(date_task) {
+					task.expired = "Yes"
+				} else {
+					task.expired = "No"
+				}
+			} else {
 				task.expired = "No"
 			}
-		} else{
-			task.expired = "No"
+			fmt.Fprintf(w, "%v\t%s\t%s\t%v\t%s\t\n", task.id, task.text, task.complete, task.due_date, task.expired)
 		}
-
-		fmt.Fprintf(w, "%v\t%s\t%s\t%v\t%s\t\n", task.id, task.text, task.complete, task.due_date, task.expired)
+		w.Flush()
 	}
-	w.Flush()
 }
-
 
 func UpdateTask(db *sql.DB, id int, column string, value string) {
 	//Date validation
-	if column == "due_date"{
+	if column == "due_date" {
 		_, err_parse := time.Parse(DATE_FORMAT, value)
 		if err_parse != nil {
 			fmt.Println("Invalid date, please use the following format: YYYY-MM-DD")
@@ -138,38 +158,39 @@ func UpdateTask(db *sql.DB, id int, column string, value string) {
 	res, err_query := db.Exec(query)
 	if err_query != nil {
 		log.Fatalln(err_query)
-	}else {
+	} else {
 		rows_affected, err_rows := res.RowsAffected()
 		if err_rows != nil {
 			log.Fatalln(err_rows)
-		} else if rows_affected > 0{
+		} else if rows_affected > 0 {
 			fmt.Printf("Task %v updated successfully\n", id)
-		} else{
+		} else {
 			fmt.Printf("Task %v not updated, check if the value passed is valid\n", id)
 		}
 	}
 }
 
-func ManageCheck(db *sql.DB, id int, check_state string) {
-	var query string = fmt.Sprintf("UPDATE todo_items SET complete='%s' WHERE todo_id=%v", check_state, id)
+func ManageCheck(db *sql.DB, id_tasks []string, check_state string) {
+	var query string = fmt.Sprintf("UPDATE todo_items SET complete='%s' WHERE todo_id IN (", check_state)
+	query += strings.Join(id_tasks, ", ")
+	query += ")"
 	res, err := db.Exec(query)
 	if err != nil {
 		log.Fatalln(err)
-	} else{
+	} else {
 		rows_affected, err_rows := res.RowsAffected()
 		if err_rows != nil {
 			log.Fatalln(err_rows)
-		} else if rows_affected > 0 {
-			fmt.Printf("Task %v state changed successfully\n", id)
+		} else if rows_affected == int64(len(id_tasks)) {
+			fmt.Printf("All tasks state were changed successfully\n")
 		} else {
-			fmt.Printf("Task %v state not changed, task might not exist\n", id)
+			fmt.Printf("Most tasks state were changed, validate which ones were not\n")
 		}
 	}
 }
 
-
 func RemoveTask(db *sql.DB, task_ids []string) {
-	var query string = ` DELETE FROM todo_items WHERE todo_id IN (`;
+	var query string = ` DELETE FROM todo_items WHERE todo_id IN (`
 	query += strings.Join(task_ids, ", ")
 	query += ")"
 	res, err_query := db.Exec(query)
@@ -190,12 +211,12 @@ func CleanTasks(db *sql.DB, mode string) {
 	var (
 		deleted_rows int64
 		err_rowCount error
-		query string = "DELETE FROM todo_items WHERE "
+		query        string = "DELETE FROM todo_items WHERE "
 	)
 	if mode == "expired" {
 		var curr_date string = time.Now().Format(DATE_FORMAT)
 		query += fmt.Sprintf("due_date < '%s' AND due_date != ''", curr_date)
-	} else{
+	} else {
 		query += "complete='Yes'"
 	}
 	result, err := db.Exec(query)
@@ -205,7 +226,7 @@ func CleanTasks(db *sql.DB, mode string) {
 	deleted_rows, err_rowCount = result.RowsAffected()
 	if err_rowCount != nil {
 		log.Fatalln(err_rowCount)
-	} else{
+	} else {
 		fmt.Printf("%d deleted tasks\n", deleted_rows)
 	}
 }
